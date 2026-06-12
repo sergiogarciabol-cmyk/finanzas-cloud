@@ -1,0 +1,37 @@
+{
+  "spreadsheetId": "1QT9X32gfCh8ca7ui4fhTDwl3dR4liRiFySX9Cji05pI",
+  "spreadsheetUrl": "https://docs.google.com/spreadsheets/d/1QT9X32gfCh8ca7ui4fhTDwl3dR4liRiFySX9Cji05pI/edit",
+  "dashboardGid": "1866255223",
+  "dashboardUrl": "https://docs.google.com/spreadsheets/d/1QT9X32gfCh8ca7ui4fhTDwl3dR4liRiFySX9Cji05pI/edit#gid=1866255223",
+  "tabs": {
+    "ingresos": {
+      "sheetName": "Ingresos",
+      "columns": ["Fecha", "Descripcion", "Monto", "Categoria"]
+    },
+    "gastos": {
+      "sheetName": "Gastos",
+      "columns": ["Fecha", "Descripcion", "Monto", "Categoria"]
+    },
+    "deudas": {
+      "sheetName": "Deudas",
+      "columns": ["Fecha", "Acreedor", "Descripcion", "Monto inicial", "Pagado", "Saldo", "Tasa interes mensual", "Estado", "Fecha vencimiento"]
+    },
+    "intereses": {
+      "sheetName": "Intereses",
+      "columns": ["Fecha", "Descripcion", "Capital", "Tasa", "Interes calculado", "Estado"]
+    },
+    "cuentas_por_pagar": {
+      "sheetName": "Cuentas por pagar",
+      "columns": ["Fecha", "Proveedor", "Descripcion", "Monto", "Fecha vencimiento", "Estado", "Dias para vencer"]
+    },
+    "cuentas_por_cobrar": {
+      "sheetName": "Cuentas por cobrar",
+      "columns": ["Fecha", "Cliente", "Descripcion", "Monto", "Fecha vencimiento", "Estado", "Dias para vencer"]
+    }
+  },
+  "categories": {
+    "ingresos": ["Bellapro", "Producto tendencia"],
+    "gastos": ["Alimentacion", "Transporte", "Servicios basicos", "Alquiler", "Salud", "Educacion", "Entretenimiento", "Interes", "Otros"],
+    "estados": ["Pendiente", "Pagado", "Vencido", "Cobrado", "Activo", "Cerrado"]
+  }
+}

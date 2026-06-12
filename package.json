@@ -1,0 +1,17 @@
+{
+  "name": "chat-finanzas-nube",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vercel dev",
+    "start": "node api/chat.js"
+  },
+  "dependencies": {
+    "googleapis": "^144.0.0",
+    "openai": "^6.9.0"
+  },
+  "devDependencies": {
+    "vercel": "^48.0.0"
+  }
+}

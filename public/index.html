@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Chat Finanzas</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --ink: #172033;
+        --muted: #667085;
+        --line: #d8dee8;
+        --brand: #0f766e;
+        --bg: #f5f7fb;
+        --panel: #ffffff;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        color: var(--ink);
+        background: var(--bg);
+      }
+
+      main {
+        width: min(920px, 100%);
+        margin: 0 auto;
+        min-height: 100vh;
+        display: grid;
+        grid-template-rows: auto 1fr auto;
+        background: var(--panel);
+      }
+
+      header {
+        padding: 18px 18px 12px;
+        border-bottom: 1px solid var(--line);
+      }
+
+      h1 {
+        margin: 0;
+        font-size: 22px;
+      }
+
+      header p {
+        margin: 4px 0 0;
+        color: var(--muted);
+        font-size: 14px;
+      }
+
+      #chat {
+        padding: 16px;
+        overflow: auto;
+      }
+
+      .msg {
+        width: fit-content;
+        max-width: min(760px, 92%);
+        padding: 11px 13px;
+        margin: 0 0 10px;
+        border-radius: 8px;
+        line-height: 1.4;
+        white-space: pre-wrap;
+      }
+
+      .user {
+        margin-left: auto;
+        background: #d1fae5;
+      }
+
+      .assistant {
+        background: #eef2f7;
+      }
+
+      form {
+        display: flex;
+        gap: 8px;
+        padding: 12px;
+        border-top: 1px solid var(--line);
+        background: #fff;
+      }
+
+      textarea {
+        flex: 1;
+        min-height: 48px;
+        max-height: 140px;
+        resize: vertical;
+        padding: 12px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        font: inherit;
+      }
+
+      button {
+        min-width: 96px;
+        border: 0;
+        border-radius: 8px;
+        background: var(--brand);
+        color: #fff;
+        font-weight: 700;
+        cursor: pointer;
+      }
+
+      button:disabled {
+        opacity: 0.65;
+        cursor: wait;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1>Chat Finanzas</h1>
+        <p>Registra ingresos, gastos, deudas y consulta tu Dashboard desde el telefono.</p>
+      </header>
+
+      <section id="chat">
+        <div class="msg assistant">Hola. Puedo ayudarte a registrar movimientos o mostrar el informe de Finanzas.</div>
+      </section>
+
+      <form id="form">
+        <textarea id="input" placeholder="Ej: Registrar 100 bolivianos de gasto por almuerzo"></textarea>
+        <button id="send" type="submit">Enviar</button>
+      </form>
+    </main>
+
+    <script>
+      const chat = document.querySelector("#chat");
+      const form = document.querySelector("#form");
+      const input = document.querySelector("#input");
+      const send = document.querySelector("#send");
+      const messages = [];
+      let pendingDraft = null;
+
+      function addMessage(role, content) {
+        const div = document.createElement("div");
+        div.className = `msg ${role}`;
+        div.textContent = content;
+        chat.appendChild(div);
+        chat.scrollTop = chat.scrollHeight;
+      }
+
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const text = input.value.trim();
+        if (!text) return;
+
+        input.value = "";
+        addMessage("user", text);
+        messages.push({ role: "user", content: text });
+        send.disabled = true;
+
+        try {
+          const response = await fetch("/api/chat", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ messages, pendingDraft }),
+          });
+          const data = await response.json();
+          if (!response.ok) throw new Error(data.error || "Error desconocido");
+          pendingDraft = data.pendingDraft || null;
+          addMessage("assistant", data.reply);
+          messages.push({ role: "assistant", content: data.reply });
+        } catch (error) {
+          addMessage("assistant", `No pude responder: ${error.message}`);
+        } finally {
+          send.disabled = false;
+          input.focus();
+        }
+      });
+    </script>
+  </body>
+</html>
