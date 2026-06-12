@@ -11,6 +11,7 @@ const configPath = path.join(rootDir, "data", "finanzas_config.json");
 
 const affirmative = /^(si|sí|confirmo|confirmar|guardar|dale|ok|correcto|afirmativo)\b/i;
 const negative = /^(no|cancelar|cancela|descartar)\b/i;
+const authHeaderName = "x-finanzas-password";
 
 async function loadTextContext() {
   const [instructions, configRaw] = await Promise.all([
@@ -35,6 +36,22 @@ function getDashboardUrl(config) {
   const id = getSpreadsheetId(config);
   const gid = process.env.FINANZAS_DASHBOARD_GID || config.dashboardGid;
   return `https://docs.google.com/spreadsheets/d/${id}/edit#gid=${gid}`;
+}
+
+function isAuthorized(req) {
+  if (!process.env.APP_PASSWORD) return true;
+  const directPassword = req.headers[authHeaderName];
+  const bearerPassword = req.headers.authorization?.replace(/^Bearer\s+/i, "");
+  return directPassword === process.env.APP_PASSWORD || bearerPassword === process.env.APP_PASSWORD;
+}
+
+function requireAuth(req, res) {
+  if (isAuthorized(req)) return true;
+  res.status(401).json({
+    error: "Ingresa la contraseña de acceso.",
+    authRequired: true,
+  });
+  return false;
 }
 
 function parseServiceAccount() {
@@ -98,6 +115,43 @@ function formatPercent(value) {
   const number = Number(value || 0);
   if (number > 0 && number < 1) return `${(number * 100).toFixed(2)}%`;
   return `${number}%`;
+}
+
+function parseNumber(value) {
+  if (value === undefined || value === null || value === "") return undefined;
+  if (typeof value === "number") return Number.isFinite(value) ? value : undefined;
+
+  const text = String(value)
+    .trim()
+    .replace(/\s+/g, "")
+    .replace(/,/g, ".")
+    .replace(/[^\d.-]/g, "");
+  if (!text || text === "-" || text === "." || text === "-.") return undefined;
+
+  const number = Number(text);
+  return Number.isFinite(number) ? number : undefined;
+}
+
+function setNumber(target, field, ...values) {
+  for (const value of values) {
+    const number = parseNumber(value);
+    if (number !== undefined) {
+      target[field] = number;
+      return;
+    }
+  }
+  delete target[field];
+}
+
+function setNumberWithDefault(target, field, defaultValue, ...values) {
+  for (const value of values) {
+    const number = parseNumber(value);
+    if (number !== undefined) {
+      target[field] = number;
+      return;
+    }
+  }
+  target[field] = defaultValue;
 }
 
 function todayIso() {
@@ -179,28 +233,35 @@ function normalizeDraft(draft, config) {
   const normalized = { ...draft, tipo: kind, fecha: draft.fecha || todayIso() };
 
   if (kind === "ingresos" || kind === "gastos") {
-    normalized.monto = Number(draft.monto || 0);
+    setNumber(normalized, "monto", draft.monto);
     normalized.categoria = normalizeCategory(kind, draft.categoria, config);
   }
 
   if (kind === "deudas") {
-    normalized.monto_inicial = Number(draft.monto_inicial || draft.monto || 0);
-    normalized.pagado = Number(draft.pagado || 0);
-    normalized.tasa_interes_mensual = Number(draft.tasa_interes_mensual || draft.tasa || 0);
+    setNumber(normalized, "monto_inicial", draft.monto_inicial, draft.monto);
+    setNumberWithDefault(normalized, "pagado", 0, draft.pagado);
+    setNumberWithDefault(normalized, "tasa_interes_mensual", 0, draft.tasa_interes_mensual, draft.tasa);
     if (normalized.tasa_interes_mensual > 1) normalized.tasa_interes_mensual /= 100;
     normalized.estado = normalizeStatus(draft.estado, config);
   }
 
   if (kind === "intereses") {
-    normalized.capital = Number(draft.capital || 0);
-    normalized.tasa = Number(draft.tasa || 0);
+    setNumber(normalized, "capital", draft.capital);
+    setNumber(normalized, "tasa", draft.tasa);
     if (normalized.tasa > 1) normalized.tasa /= 100;
-    normalized.interes_calculado = Number(draft.interes_calculado || normalized.capital * normalized.tasa);
+    const interes = parseNumber(draft.interes_calculado);
+    if (interes !== undefined) {
+      normalized.interes_calculado = interes;
+    } else if (normalized.capital !== undefined && normalized.tasa !== undefined) {
+      normalized.interes_calculado = normalized.capital * normalized.tasa;
+    } else {
+      delete normalized.interes_calculado;
+    }
     normalized.estado = normalizeStatus(draft.estado, config);
   }
 
   if (kind === "cuentas_por_pagar" || kind === "cuentas_por_cobrar") {
-    normalized.monto = Number(draft.monto || 0);
+    setNumber(normalized, "monto", draft.monto);
     normalized.estado = normalizeStatus(draft.estado, config);
   }
 
@@ -209,6 +270,8 @@ function normalizeDraft(draft, config) {
 
 function requiredFields(draft) {
   const kind = normalizeKind(draft.tipo);
+  if (!kind) return ["tipo"];
+
   const fields = {
     ingresos: ["fecha", "descripcion", "monto", "categoria"],
     gastos: ["fecha", "descripcion", "monto", "categoria"],
@@ -216,8 +279,26 @@ function requiredFields(draft) {
     intereses: ["fecha", "descripcion", "capital", "tasa", "estado"],
     cuentas_por_pagar: ["fecha", "proveedor", "descripcion", "monto", "fecha_vencimiento", "estado"],
     cuentas_por_cobrar: ["fecha", "cliente", "descripcion", "monto", "fecha_vencimiento", "estado"],
+  }[kind];
+
+  if (!fields) return ["tipo"];
+
+  const positiveNumberFields = {
+    ingresos: ["monto"],
+    gastos: ["monto"],
+    deudas: ["monto_inicial"],
+    intereses: ["capital", "tasa"],
+    cuentas_por_pagar: ["monto"],
+    cuentas_por_cobrar: ["monto"],
   }[kind] || [];
-  return fields.filter((field) => draft[field] === undefined || draft[field] === null || draft[field] === "");
+
+  const missing = fields.filter((field) => draft[field] === undefined || draft[field] === null || draft[field] === "");
+  for (const field of positiveNumberFields) {
+    if (!missing.includes(field) && (!Number.isFinite(Number(draft[field])) || Number(draft[field]) <= 0)) {
+      missing.push(field);
+    }
+  }
+  return missing;
 }
 
 async function readDashboardSummary(config) {
@@ -244,6 +325,11 @@ async function saveDraft(draft, config) {
   const kind = normalizeKind(draft.tipo);
   const tab = config.tabs[kind];
   if (!tab) throw new Error(`Tipo no soportado: ${draft.tipo}`);
+
+  const missing = requiredFields(draft);
+  if (missing.length) {
+    throw new Error(`Faltan datos para guardar: ${missing.join(", ")}.`);
+  }
 
   const row = await nextRow(sheets, spreadsheetId, tab.sheetName);
   let values;
@@ -327,7 +413,15 @@ function outputText(response) {
   return parts.join("\n").trim();
 }
 
-async function draftFromModel(messages, instructions, config) {
+function parseJsonResponse(text) {
+  const clean = text
+    .trim()
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/\s*```$/i, "");
+  return JSON.parse(clean);
+}
+
+async function draftFromModel(messages, instructions, config, pendingDraft) {
   const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
   const response = await client.responses.create({
     model: getModel(),
@@ -342,6 +436,7 @@ async function draftFromModel(messages, instructions, config) {
 Convierte el ultimo pedido de registro en JSON estricto. Si no es registro, devuelve {"intent":"chat"}.
 Tipos permitidos: ingresos, gastos, deudas, intereses, cuentas_por_pagar, cuentas_por_cobrar.
 Usa fecha ISO yyyy-mm-dd. Si no hay fecha, usa ${todayIso()}.
+Si hay un borrador pendiente y el usuario corrige o completa un dato, conserva los datos anteriores y devuelve el borrador completo actualizado.
 No incluyas markdown.`,
           },
         ],
@@ -351,15 +446,14 @@ No incluyas markdown.`,
         content: [
           {
             type: "input_text",
-            text: `Contexto de conversacion:\n${plainMessages(messages)}\n\nCategorias y estructura:\n${JSON.stringify(config)}`,
+            text: `Contexto de conversacion:\n${plainMessages(messages)}\n\nBorrador pendiente:\n${JSON.stringify(pendingDraft || null)}\n\nCategorias y estructura:\n${JSON.stringify(config)}`,
           },
         ],
       },
     ],
   });
 
-  const text = outputText(response).replace(/^```json|```$/g, "").trim();
-  return JSON.parse(text);
+  return parseJsonResponse(outputText(response));
 }
 
 async function chatAnswer(messages, instructions, config) {
@@ -386,7 +480,7 @@ async function chatAnswer(messages, instructions, config) {
 
 URL del Dashboard: ${dashboardUrl}
 Resumen Dashboard: ${JSON.stringify(dashboardSummary)}
-Si el usuario pide informe de Finanzas, responde con el enlace al Dashboard como boton Markdown.`,
+Si el usuario pide informe de Finanzas, incluye exactamente este enlace Markdown: [Ver Dashboard de Finanzas](${dashboardUrl}).`,
           },
         ],
       },
@@ -401,10 +495,17 @@ Si el usuario pide informe de Finanzas, responde con el enlace al Dashboard como
 }
 
 export default async function handler(req, res) {
+  if (req.method === "GET") {
+    res.status(200).json({ authRequired: Boolean(process.env.APP_PASSWORD) });
+    return;
+  }
+
   if (req.method !== "POST") {
     res.status(405).json({ error: "Metodo no permitido" });
     return;
   }
+
+  if (!requireAuth(req, res)) return;
 
   try {
     if (!process.env.OPENAI_API_KEY) {
@@ -436,9 +537,10 @@ export default async function handler(req, res) {
       return;
     }
 
-    const draftResponse = await draftFromModel(messages, instructions, config);
+    const draftResponse = await draftFromModel(messages, instructions, config, pendingDraft);
     if (draftResponse.intent !== "chat") {
-      const draft = normalizeDraft(draftResponse.draft || draftResponse, config);
+      const sourceDraft = pendingDraft ? { ...pendingDraft, ...(draftResponse.draft || draftResponse) } : draftResponse.draft || draftResponse;
+      const draft = normalizeDraft(sourceDraft, config);
       const missing = requiredFields(draft);
       if (missing.length) {
         res.status(200).json({
@@ -449,6 +551,14 @@ export default async function handler(req, res) {
       }
 
       res.status(200).json({ reply: formatDraft(draft), pendingDraft: draft });
+      return;
+    }
+
+    if (pendingDraft) {
+      res.status(200).json({
+        reply: "Aún tengo un borrador pendiente. Responde **Sí** para guardarlo, **No** para descartarlo, o dime qué dato quieres cambiar.",
+        pendingDraft,
+      });
       return;
     }
 

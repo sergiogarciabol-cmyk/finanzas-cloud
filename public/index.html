@@ -19,12 +19,65 @@
         box-sizing: border-box;
       }
 
+      [hidden] {
+        display: none !important;
+      }
+
       body {
         margin: 0;
         min-height: 100vh;
         font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
         color: var(--ink);
         background: var(--bg);
+      }
+
+      .login {
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        padding: 16px;
+      }
+
+      .login-panel {
+        width: min(420px, 100%);
+        padding: 22px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--panel);
+      }
+
+      .login-panel h1 {
+        margin: 0 0 6px;
+      }
+
+      .login-panel p {
+        margin: 0 0 16px;
+        color: var(--muted);
+        line-height: 1.4;
+      }
+
+      .login-panel form {
+        display: grid;
+        gap: 10px;
+      }
+
+      .login-panel input {
+        min-height: 48px;
+        padding: 12px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        font: inherit;
+      }
+
+      .login-panel button {
+        min-height: 48px;
+      }
+
+      #loginMessage {
+        min-height: 20px;
+        margin: 10px 0 0;
+        color: #b42318;
+        font-size: 14px;
       }
 
       main {
@@ -76,7 +129,22 @@
         background: #eef2f7;
       }
 
-      form {
+      .msg a {
+        color: #0f5f59;
+        font-weight: 700;
+      }
+
+      .msg a[href*="docs.google.com"] {
+        display: inline-block;
+        margin-top: 4px;
+        padding: 9px 12px;
+        border-radius: 8px;
+        background: var(--brand);
+        color: #fff;
+        text-decoration: none;
+      }
+
+      #form {
         display: flex;
         gap: 8px;
         padding: 12px;
@@ -112,10 +180,22 @@
     </style>
   </head>
   <body>
-    <main>
+    <section id="login" class="login" hidden>
+      <div class="login-panel">
+        <h1>Chat Finanzas</h1>
+        <p>Ingresa la contraseña de acceso para abrir tu asistente financiero.</p>
+        <form id="loginForm">
+          <input id="password" type="password" autocomplete="current-password" placeholder="Contraseña" />
+          <button type="submit">Entrar</button>
+        </form>
+        <p id="loginMessage"></p>
+      </div>
+    </section>
+
+    <main id="app" hidden>
       <header>
         <h1>Chat Finanzas</h1>
-        <p>Registra ingresos, gastos, deudas y consulta tu Dashboard desde el telefono.</p>
+        <p>Registra ingresos, gastos, deudas y consulta tu Dashboard desde el teléfono.</p>
       </header>
 
       <section id="chat">
@@ -133,16 +213,93 @@
       const form = document.querySelector("#form");
       const input = document.querySelector("#input");
       const send = document.querySelector("#send");
+      const app = document.querySelector("#app");
+      const login = document.querySelector("#login");
+      const loginForm = document.querySelector("#loginForm");
+      const password = document.querySelector("#password");
+      const loginMessage = document.querySelector("#loginMessage");
       const messages = [];
       let pendingDraft = null;
+      let accessPassword = sessionStorage.getItem("finanzas_password") || "";
+
+      function showApp() {
+        login.hidden = true;
+        app.hidden = false;
+        input.focus();
+      }
+
+      function showLogin(message = "") {
+        app.hidden = true;
+        login.hidden = false;
+        loginMessage.textContent = message;
+        password.focus();
+      }
+
+      function appendFormatted(parent, content) {
+        const text = String(content || "");
+        const pattern = /(\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)|\*\*([^*]+)\*\*)/g;
+        let index = 0;
+        let match;
+
+        while ((match = pattern.exec(text))) {
+          if (match.index > index) {
+            parent.appendChild(document.createTextNode(text.slice(index, match.index)));
+          }
+
+          if (match[2] && match[3]) {
+            const link = document.createElement("a");
+            link.href = match[3];
+            link.target = "_blank";
+            link.rel = "noopener noreferrer";
+            link.textContent = match[2];
+            parent.appendChild(link);
+          } else if (match[4]) {
+            const strong = document.createElement("strong");
+            strong.textContent = match[4];
+            parent.appendChild(strong);
+          }
+
+          index = pattern.lastIndex;
+        }
+
+        if (index < text.length) {
+          parent.appendChild(document.createTextNode(text.slice(index)));
+        }
+      }
 
       function addMessage(role, content) {
         const div = document.createElement("div");
         div.className = `msg ${role}`;
-        div.textContent = content;
+        appendFormatted(div, content);
         chat.appendChild(div);
         chat.scrollTop = chat.scrollHeight;
       }
+
+      async function loadStatus() {
+        try {
+          const response = await fetch("/api/chat");
+          const data = await response.json();
+          if (data.authRequired && !accessPassword) {
+            showLogin();
+          } else {
+            showApp();
+          }
+        } catch {
+          showApp();
+        }
+      }
+
+      loginForm.addEventListener("submit", (event) => {
+        event.preventDefault();
+        accessPassword = password.value.trim();
+        if (!accessPassword) {
+          showLogin("Escribe la contraseña para continuar.");
+          return;
+        }
+        sessionStorage.setItem("finanzas_password", accessPassword);
+        password.value = "";
+        showApp();
+      });
 
       form.addEventListener("submit", async (event) => {
         event.preventDefault();
@@ -155,12 +312,21 @@
         send.disabled = true;
 
         try {
+          const headers = { "Content-Type": "application/json" };
+          if (accessPassword) headers["x-finanzas-password"] = accessPassword;
+
           const response = await fetch("/api/chat", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers,
             body: JSON.stringify({ messages, pendingDraft }),
           });
           const data = await response.json();
+          if (response.status === 401) {
+            sessionStorage.removeItem("finanzas_password");
+            accessPassword = "";
+            showLogin(data.error || "Contraseña incorrecta.");
+            return;
+          }
           if (!response.ok) throw new Error(data.error || "Error desconocido");
           pendingDraft = data.pendingDraft || null;
           addMessage("assistant", data.reply);
@@ -172,6 +338,8 @@
           input.focus();
         }
       });
+
+      loadStatus();
     </script>
   </body>
 </html>

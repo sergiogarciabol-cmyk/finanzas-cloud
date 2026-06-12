@@ -15,6 +15,7 @@ Este paquete copia el hilo entrenado **FINANZAS** hacia una base lista para nube
    - `OPENAI_MODEL`
    - `FINANZAS_SPREADSHEET_ID`
    - `FINANZAS_DASHBOARD_GID`
+   - `APP_PASSWORD`
    - `GOOGLE_SERVICE_ACCOUNT_JSON`
 3. Publica el proyecto.
 4. Abre el enlace desde el telefono.
@@ -43,3 +44,5 @@ https://docs.google.com/spreadsheets/d/1QT9X32gfCh8ca7ui4fhTDwl3dR4liRiFySX9Cji0
 ## Seguridad
 
 No pongas la clave de OpenAI en `public/index.html`. La clave solo debe vivir como variable privada del servidor.
+
+Configura `APP_PASSWORD` en Vercel para pedir contraseña antes de usar el chat. Si no configuras esa variable, el chat queda abierto para cualquiera que tenga el enlace.

@@ -8,6 +8,7 @@ Configura estas variables en Vercel, Render o Railway:
 - `OPENAI_MODEL`
 - `FINANZAS_SPREADSHEET_ID`
 - `FINANZAS_DASHBOARD_GID`
+- `APP_PASSWORD`
 - `GOOGLE_SERVICE_ACCOUNT_JSON`
 
 ## Valores ya conocidos
@@ -15,6 +16,7 @@ Configura estas variables en Vercel, Render o Railway:
 - `OPENAI_MODEL`: `gpt-5`
 - `FINANZAS_SPREADSHEET_ID`: `1QT9X32gfCh8ca7ui4fhTDwl3dR4liRiFySX9Cji05pI`
 - `FINANZAS_DASHBOARD_GID`: `1866255223`
+- `APP_PASSWORD`: una contraseña privada que solo tu conozcas
 
 ## Paso de Google Sheets
 
@@ -32,4 +34,4 @@ Usar Vercel:
 3. Configurar las variables privadas.
 4. Deploy.
 5. Abrir el enlace desde el telefono.
-
+6. En el telefono, toca Compartir > Agregar a pantalla de inicio para abrirlo como app.
