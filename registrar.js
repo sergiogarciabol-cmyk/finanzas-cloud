@@ -127,13 +127,11 @@ async function main() {
   const row = await nextRow(sheets, sheetName);
   const values = cols.map(c => record[c] ?? "");
 
-  // Mostrar borrador ordenado con columnas alineadas
-  const labelWidth = Math.max(...cols.map(c => c.length), "Tipo".length, "Hoja destino".length, "Fila propuesta".length);
+  // Mostrar borrador (sin Tipo ni Fila propuesta)
+  const labelWidth = Math.max(...cols.map(c => c.length), "Hoja destino".length);
   const pad = (s) => s.padEnd(labelWidth);
   console.log("─────────────────────────────────────────────");
-  console.log(`${pad("Tipo")}  :  ${tipo.replace(/_/g, " ")}`);
   console.log(`${pad("Hoja destino")}  :  ${sheetName}`);
-  console.log(`${pad("Fila propuesta")}  :  ${row}`);
   console.log("─────────────────────────────────────────────");
   cols.forEach((c, i) => console.log(`${pad(c)}  :  ${values[i]}`));
   if (formulaCols.length) {
@@ -153,7 +151,22 @@ async function main() {
     requestBody: { values: [values] },
   });
 
+  // Calcular total acumulado de la hoja
+  const allRows = await sheets.spreadsheets.values.get({
+    spreadsheetId: SPREADSHEET_ID,
+    range: `'${sheetName}'!C:C`,
+  });
+  const montoCol = (allRows.data.values || []).slice(1); // omite encabezado
+  const total = montoCol.reduce((sum, r) => {
+    const n = parseFloat(String(r[0] || "").replace(/[^0-9.-]/g, ""));
+    return sum + (isNaN(n) ? 0 : n);
+  }, 0);
+
   console.log(`✓ Registrado en "${sheetName}" fila ${row}`);
+  console.log("─────────────────────────────────────────────");
+  console.log(`${pad("Registro en fila")}  :  ${row}`);
+  console.log(`${pad("Total acumulado")}   :  Bs ${total.toLocaleString("es-BO", { minimumFractionDigits: 2 })}`);
+  console.log("─────────────────────────────────────────────");
 }
 
 main().catch(err => { console.error("Error:", err.message); process.exit(1); });
