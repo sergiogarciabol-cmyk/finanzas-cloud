@@ -20,9 +20,9 @@ const configPath = path.join(__dirname, "..", "data", "finanzas_config.json");
 // ── Gasto a registrar ──────────────────────────────────────────────────────────
 const GASTO = {
   fecha: new Date().toISOString().slice(0, 10), // hoy
-  descripcion: "Comida",
-  monto: 100,
-  categoria: "Alimentacion",
+  descripcion: "Cine, Jimena",
+  monto: 500,
+  categoria: "Entretenimiento",
 };
 // ──────────────────────────────────────────────────────────────────────────────
 
