@@ -3,6 +3,8 @@
 // Uso: node registrar.js <tipo> <descripcion> <monto> [categoria] [fecha]
 // Tipos: ingresos | gastos | deudas | cuentas_por_pagar | cuentas_por_cobrar
 
+import { config } from "dotenv";
+config();
 import { google } from "googleapis";
 
 const SPREADSHEET_ID = process.env.FINANZAS_SPREADSHEET_ID;
