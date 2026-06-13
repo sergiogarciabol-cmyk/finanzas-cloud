@@ -127,16 +127,23 @@ async function main() {
   const row = await nextRow(sheets, sheetName);
   const values = cols.map(c => record[c] ?? "");
 
-  // Mostrar borrador (stdout para que Claude lo lea)
-  console.log("─────────────────────────────────────");
-  console.log(`Tipo: ${tipo.replace(/_/g, " ")}`);
-  console.log(`Hoja destino: ${sheetName}`);
-  console.log(`Fila propuesta: ${row}`);
-  console.log("Campos a registrar:");
-  cols.forEach((c, i) => console.log(`  ${c} = ${values[i]}`));
-  if (formulaCols.length) console.log(`Campos con fórmula omitidos: ${formulaCols.join(", ")}`);
-  if (defaultsApplied.length) console.log(`Valores por defecto aplicados: ${defaultsApplied.join("; ")}`);
-  console.log("─────────────────────────────────────");
+  // Mostrar borrador ordenado con columnas alineadas
+  const labelWidth = Math.max(...cols.map(c => c.length), "Tipo".length, "Hoja destino".length, "Fila propuesta".length);
+  const pad = (s) => s.padEnd(labelWidth);
+  console.log("─────────────────────────────────────────────");
+  console.log(`${pad("Tipo")}  :  ${tipo.replace(/_/g, " ")}`);
+  console.log(`${pad("Hoja destino")}  :  ${sheetName}`);
+  console.log(`${pad("Fila propuesta")}  :  ${row}`);
+  console.log("─────────────────────────────────────────────");
+  cols.forEach((c, i) => console.log(`${pad(c)}  :  ${values[i]}`));
+  if (formulaCols.length) {
+    console.log("─────────────────────────────────────────────");
+    console.log(`${pad("Col. con fórmula")}  :  ${formulaCols.join(", ")}`);
+  }
+  if (defaultsApplied.length) {
+    console.log(`${pad("Defaults aplicados")}  :  ${defaultsApplied.join(" | ")}`);
+  }
+  console.log("─────────────────────────────────────────────");
 
   // Escribir en la hoja
   await sheets.spreadsheets.values.update({
