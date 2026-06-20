@@ -151,10 +151,11 @@ async function main() {
     requestBody: { values: [values] },
   });
 
-  // Calcular total acumulado de la hoja
+  // Calcular total acumulado — columna del Monto según tipo
+  const montoColLetter = { ingreso: "C", gasto: "C", deuda: "D", interes: "C", cuenta_por_pagar: "D", cuenta_por_cobrar: "D" }[tipo] || "C";
   const allRows = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
-    range: `'${sheetName}'!C:C`,
+    range: `'${sheetName}'!${montoColLetter}:${montoColLetter}`,
   });
   const montoCol = (allRows.data.values || []).slice(1); // omite encabezado
   const total = montoCol.reduce((sum, r) => {
